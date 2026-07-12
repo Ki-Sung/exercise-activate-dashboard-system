@@ -1,0 +1,8 @@
+{
+  "name": "러닝 대시보드",
+  "short_name": "러닝",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#10151F",
+  "theme_color": "#10151F"
+}

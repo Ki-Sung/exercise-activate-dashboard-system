@@ -152,6 +152,7 @@ activemq-data/
 
 # Environments
 .env
+.env.local
 .envrc
 .venv
 env/
@@ -159,6 +160,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+garmin_tokens/
 
 # Spyder project settings
 .spyderproject
@@ -219,3 +221,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# node modules
+node_modules/
+
+# next.js build
+.next/
+
+# vercel build
+.vercel

@@ -1,0 +1,107 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+/* ------------------------------------------------------------------
+   Design tokens — "predawn run"
+   새벽 5시, 가로등(sodium vapor) 아래를 달릴 때의 색.
+   ------------------------------------------------------------------ */
+:root {
+  --ink:        #10151F;  /* 아스팔트 */
+  --ink-2:      #1A2233;  /* 카드 */
+  --ink-3:      #263047;  /* 경계선 */
+  --fog:        #8A97AE;  /* 보조 텍스트 */
+  --chalk:      #E9EDF5;  /* 본문 */
+  --lamp:       #F5A524;  /* 가로등 앰버 — 액센트, 아껴서 쓴다 */
+  --lamp-dim:   #7A5312;
+  --cool:       #4FD1C5;  /* 빠른 페이스 */
+
+  --font-display: 'Barlow Condensed', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--ink);
+  color: var(--chalk);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 40px 20px 80px; }
+
+/* ---- header: 트랙 레인 라인 모티프 ---- */
+.masthead { border-bottom: 1px solid var(--ink-3); padding-bottom: 20px; margin-bottom: 32px; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--lamp);
+}
+.masthead h1 {
+  font-family: var(--font-display); font-size: 44px; font-weight: 700;
+  letter-spacing: .01em; line-height: 1; margin-top: 6px;
+}
+.masthead p { color: var(--fog); font-size: 13px; margin-top: 8px; }
+
+/* ---- section ---- */
+section { margin-top: 44px; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+.sec-head h2 {
+  font-family: var(--font-display); font-size: 22px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.sec-head span { font-size: 12px; color: var(--fog); }
+
+/* ---- stat cards ---- */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.stat {
+  background: var(--ink-2); border: 1px solid var(--ink-3);
+  border-radius: 4px; padding: 16px 18px;
+}
+.stat .label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--fog);
+}
+.stat .value {
+  font-family: var(--font-display); font-size: 34px; font-weight: 700;
+  margin-top: 6px; line-height: 1; font-variant-numeric: tabular-nums;
+}
+.stat .unit { font-size: 14px; color: var(--fog); margin-left: 4px; font-weight: 500; }
+
+/* ---- signature: pace ribbon ---- */
+.ribbon { display: flex; flex-direction: column; gap: 6px; }
+.ribbon-row { display: grid; grid-template-columns: 92px 1fr 96px; align-items: center; gap: 12px; }
+.ribbon-label { font-family: var(--font-mono); font-size: 11px; color: var(--fog); }
+.ribbon-track {
+  position: relative; height: 22px; background: var(--ink-2);
+  border-radius: 2px; overflow: hidden;
+}
+.ribbon-fill {
+  height: 100%; border-radius: 2px;
+  transition: width .5s cubic-bezier(.2,.7,.3,1);
+}
+.ribbon-meta {
+  font-family: var(--font-mono); font-size: 12px; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ribbon-meta em { color: var(--fog); font-style: normal; }
+
+/* ---- activity list ---- */
+.act { border-top: 1px solid var(--ink-3); padding: 14px 0; display: grid;
+       grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.act-name { font-weight: 600; font-size: 15px; }
+.act-sub { font-family: var(--font-mono); font-size: 11px; color: var(--fog); margin-top: 3px; }
+.act-nums { font-family: var(--font-mono); font-size: 13px; text-align: right;
+            font-variant-numeric: tabular-nums; }
+.act-nums b { color: var(--lamp); font-weight: 600; }
+
+.empty { color: var(--fog); font-size: 14px; padding: 24px 0; }
+
+@media (max-width: 700px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .masthead h1 { font-size: 34px; }
+  .ribbon-row { grid-template-columns: 70px 1fr 80px; gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ribbon-fill { transition: none; }
+}
