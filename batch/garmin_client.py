@@ -5,9 +5,9 @@
 - CI(GitHub Actions)에는 사람이 없다 → MFA 프롬프트가 뜨면 배치는 그냥 죽는다.
   따라서 "로컬에서 1회 MFA 로그인 → 토큰 발급 → DB 저장" 후
   배치는 항상 토큰으로만 로그인한다. (batch/bootstrap_token.py 참고)
-- oauth2 토큰은 1시간짜리라 실행 중 자동 갱신된다.
+- garminconnect 0.3.x 는 DI OAuth 토큰을 사용하며 실행 중 자동 갱신된다.
   갱신된 토큰을 다시 DB에 되돌려 저장해야 다음 실행이 안전하다. → dump_tokens()
-- oauth1 토큰은 약 1년 유효. 만료되면 bootstrap 을 다시 1회 돌리면 된다.
+- 토큰이 만료되면 bootstrap 을 다시 1회 돌리면 된다.
 """
 from __future__ import annotations
 
@@ -26,37 +26,47 @@ from batch.retry_policy import call_with_retry
 
 log = logging.getLogger(__name__)
 
-_TOKEN_FILES = ("oauth1_token.json", "oauth2_token.json")
+_TOKEN_FILE = "garmin_tokens.json"
+_LEGACY_TOKEN_FILES = ("oauth1_token.json", "oauth2_token.json")
 
 
 class TokenError(RuntimeError):
     pass
 
 
-def _write_token_dir(tokens: dict[str, Any]) -> Path:
-    """DB에서 읽은 토큰 dict → 임시 디렉토리(garth 포맷)로 복원."""
-    tmp = Path(tempfile.mkdtemp(prefix="garmin_tokens_"))
-    for name in _TOKEN_FILES:
-        payload = tokens.get(name)
-        if payload is None:
-            raise TokenError(f"토큰에 {name} 이(가) 없습니다. bootstrap_token.py 를 다시 실행하세요.")
-        (tmp / name).write_text(
-            payload if isinstance(payload, str) else json.dumps(payload),
-            encoding="utf-8",
+def _token_payload(tokens: dict[str, Any]) -> str:
+    """DB/백업 dict → garmin_tokens.json 본문."""
+    if _TOKEN_FILE in tokens:
+        payload = tokens[_TOKEN_FILE]
+        return payload if isinstance(payload, str) else json.dumps(payload)
+
+    if all(name in tokens for name in _LEGACY_TOKEN_FILES):
+        raise TokenError(
+            "구형 garth 토큰입니다. garminconnect 0.3.x 와 호환되지 않습니다. "
+            "bootstrap_token.py 를 다시 실행하세요."
         )
+
+    if "di_token" in tokens:
+        return json.dumps(tokens)
+
+    raise TokenError(
+        f"토큰에 {_TOKEN_FILE} 이(가) 없습니다. bootstrap_token.py 를 다시 실행하세요."
+    )
+
+
+def _write_token_dir(tokens: dict[str, Any]) -> Path:
+    """DB에서 읽은 토큰 dict → 임시 디렉토리(garminconnect 0.3 포맷)로 복원."""
+    tmp = Path(tempfile.mkdtemp(prefix="garmin_tokens_"))
+    (tmp / _TOKEN_FILE).write_text(_token_payload(tokens), encoding="utf-8")
     return tmp
 
 
 def read_token_dir(token_dir: Path) -> dict[str, str]:
-    """garth 토큰 디렉토리 → DB 저장용 dict."""
-    out: dict[str, str] = {}
-    for name in _TOKEN_FILES:
-        path = token_dir / name
-        if path.exists():
-            out[name] = path.read_text(encoding="utf-8")
-    if not out:
-        raise TokenError(f"{token_dir} 에서 토큰 파일을 찾지 못했습니다.")
-    return out
+    """garminconnect 토큰 디렉토리 → DB 저장용 dict."""
+    path = token_dir / _TOKEN_FILE
+    if not path.exists():
+        raise TokenError(f"{token_dir} 에서 {_TOKEN_FILE} 을 찾지 못했습니다.")
+    return {_TOKEN_FILE: path.read_text(encoding="utf-8")}
 
 
 def decode_token_b64(b64: str) -> dict[str, str]:
@@ -103,5 +113,5 @@ class GarminGateway:
 
     def dump_tokens(self) -> dict[str, str]:
         """세션 중 갱신되었을 수 있는 토큰을 회수한다."""
-        self._client.garth.dump(str(self._token_dir))
+        self._client.client.dump(str(self._token_dir))
         return read_token_dir(self._token_dir)

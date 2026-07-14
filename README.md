@@ -56,7 +56,8 @@ AWS 없이, 카드 등록 없이, 개인 프로젝트 규모에서 **월 0원**�
 ### Step 1 — Supabase
 1. supabase.com 가입 → New Project (Region: **Northeast Asia (Seoul)**)
 2. SQL Editor 에 `db/schema.sql` 전체 붙여넣고 실행
-3. Settings → API 에서 두 값 복사
+3. Settings → **Data API** → **Exposed schemas** 에 `garmin` 추가 (`public, garmin`) 후 Save
+4. Settings → API 에서 두 값 복사
    - `Project URL` → `SUPABASE_URL`
    - `service_role` secret → `SUPABASE_SERVICE_ROLE_KEY` ← **절대 프론트에 넣지 말 것**
 
@@ -69,8 +70,8 @@ export SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=...
 python -m batch.bootstrap_token      # 이메일/비번/MFA 6자리 입력
 ```
 - 토큰이 Supabase `garmin.app_secrets` 에 저장되고, 백업용 base64 가 출력됩니다.
-- **oauth1 토큰 유효기간 약 1년** → 1년에 한 번만 이 명령을 다시 돌리면 됩니다.
-- oauth2(1시간짜리)는 배치 실행 중 자동 갱신되고, 갱신본이 다시 DB 에 저장됩니다.
+- **DI OAuth 토큰은 실행 중 자동 갱신**됩니다. 갱신본은 배치가 DB에 다시 저장합니다.
+- 토큰이 더 이상 유효하지 않으면 이 명령을 다시 1회 실행하면 됩니다.
 
 ### Step 3 — GitHub Actions
 레포 Settings → Secrets and variables → Actions 에 등록:
