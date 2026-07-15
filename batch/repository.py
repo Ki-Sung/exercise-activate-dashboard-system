@@ -56,10 +56,15 @@ class SupabaseRepository:
             self._client.post,
             f"{self._base}/app_secrets",
             params={"on_conflict": "key"},
-            headers={"Prefer": "resolution=merge-duplicates"},
-            json=[{"key": "garmin_tokens", "value": tokens, "updated_at": "now()"}],
+            headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
+            json=[{"key": "garmin_tokens", "value": tokens}],
         )
-        res.raise_for_status()
+        if res.is_error:
+            raise httpx.HTTPStatusError(
+                f"{res.status_code} {res.reason_phrase}: {res.text}",
+                request=res.request,
+                response=res,
+            )
         log.info("갱신된 가민 토큰 저장 완료")
 
     # ---------- 활동 / 스탯 ----------

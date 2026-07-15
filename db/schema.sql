@@ -143,8 +143,21 @@ alter table garmin.daily_stats enable row level security;
 alter table garmin.sync_runs   enable row level security;
 alter table garmin.app_secrets enable row level security;
 
+-- PostgREST(Data API)가 garmin 스키마/테이블에 접근하려면 GRANT 가 필요하다.
+-- RLS 가 켜져 있어도 권한 자체가 없으면 403 Forbidden 이 난다.
+-- service_role 은 RLS 를 우회하고, anon/authenticated 는 RLS(정책 없음)로 차단된다.
+grant usage on schema garmin to anon, authenticated, service_role;
+grant all on all tables in schema garmin to anon, authenticated, service_role;
+grant all on all sequences in schema garmin to anon, authenticated, service_role;
+grant select on all tables in schema garmin to anon, authenticated, service_role;
+alter default privileges in schema garmin
+    grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema garmin
+    grant all on sequences to anon, authenticated, service_role;
+
 -- PostgREST 가 garmin 스키마를 노출하지 않도록 public 만 노출 유지(기본값).
 -- 대신 API 서버가 RPC 없이 접근할 수 있도록 public 스키마에 뷰를 노출합니다.
+-- ※ Settings → Data API → Exposed schemas 에 garmin 도 추가해야 배치가 테이블에 쓸 수 있다.
 create or replace view public.v_daily_summary   as select * from garmin.v_daily_summary;
 create or replace view public.v_weekly_summary  as select * from garmin.v_weekly_summary;
 create or replace view public.v_monthly_summary as select * from garmin.v_monthly_summary;

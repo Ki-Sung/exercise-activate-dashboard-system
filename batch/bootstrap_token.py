@@ -7,7 +7,7 @@
 3. 백업용 base64 를 화면에 출력 → GitHub Secrets 의 GARMIN_TOKEN_B64 에 넣어둔다
 
 이후 GitHub Actions 는 사람 개입 없이 이 토큰으로만 동작한다.
-oauth1 토큰은 약 1년 유효하므로, 1년에 한 번 이 스크립트를 다시 돌리면 된다.
+토큰이 만료되면 이 스크립트를 다시 1회 실행하면 된다.
 
 실행:
     export SUPABASE_URL=...
@@ -40,8 +40,7 @@ def main() -> None:
         password=password,
         prompt_mfa=lambda: input("이메일/문자로 받은 6자리 MFA 코드: ").strip(),
     )
-    client.login()
-    client.garth.dump(str(token_dir))
+    client.login(str(token_dir))
     print("\n로그인 성공. 토큰을 발급했습니다.")
 
     tokens = read_token_dir(token_dir)
