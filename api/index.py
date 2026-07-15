@@ -72,7 +72,12 @@ def _decorate(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------- app
-app = FastAPI(title="Garmin Running Dashboard API", docs_url=None, redoc_url=None)
+app = FastAPI(
+    title="Garmin Running Dashboard API",
+    docs_url="/api/py/docs",
+    redoc_url="/api/py/redoc",
+    openapi_url="/api/py/openapi.json",
+)
 
 app.add_middleware(
     CORSMiddleware,

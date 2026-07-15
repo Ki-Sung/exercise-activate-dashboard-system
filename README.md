@@ -86,17 +86,76 @@ python -m batch.bootstrap_token      # 이메일/비번/MFA 6자리 입력
 Actions 탭 → `garmin-sync` → **Run workflow** → days = `365`
 
 ### Step 4 — Vercel (API + 웹, 한 프로젝트)
-1. vercel.com 에 이 레포를 Import (Framework: Next.js, 자동 인식)
-2. Environment Variables:
+
+웹(Next.js)과 API(FastAPI, `api/index.py`)를 **같은 Vercel 프로젝트**로 배포합니다.  
+`vercel.json` rewrite 가 `/api/py/*` → `/api/index` 로 연결합니다.
+
+#### 4-1. 프로젝트 Import
+1. [vercel.com](https://vercel.com) → GitHub 로 로그인
+2. **Add New… → Project** → 이 레포 Import
+3. Framework: **Next.js** (자동)
+4. **Project Name** 기본값이면 URL 은  
+   `https://exercise-activate-dashboard-system.vercel.app`  
+   (원하면 다른 이름도 가능. 단 `eads.vercel.app` 처럼 **이미 선점된 이름은 남의 사이트**가 됨)
+5. Root Directory / Build 설정은 기본값 유지
+
+#### 4-2. Environment Variables
+Import 화면 또는 **Project → Settings → Environment Variables** 에 등록합니다.  
+적용 환경은 **Production / Preview / Development 전부** 체크.
+
+| Key | Value | 비고 |
+|---|---|---|
+| `SUPABASE_URL` | Step 1 Project URL | |
+| `SUPABASE_SERVICE_ROLE_KEY` | Step 1 `service_role` | 절대 프론트에 노출 금지 |
+| `DASHBOARD_API_KEY` | `openssl rand -hex 32` | |
+| `DASHBOARD_API_KEY_SERVER` | **위와 동일한 값** | 서버 컴포넌트용. 비우면 데이터 안 보임 |
+| `NEXT_PUBLIC_API_BASE` | `/api/py` | |
+| `ALLOWED_ORIGINS` | `https://exercise-activate-dashboard-system.vercel.app,http://localhost:3000` | Production URL 에 맞게 |
+| `INTERNAL_API_BASE` | `https://exercise-activate-dashboard-system.vercel.app/api/py` | Production URL 에 맞게 |
+
+> `GARMIN_TOKEN_B64` 는 Vercel 에 넣지 않습니다. (배치 / GitHub Actions 전용)
+
+도메인을 아직 안 정했다면 임시로 `localhost` 만 넣고 Deploy 한 뒤,  
+실제 `*.vercel.app` URL 로 두 값을 수정하고 **Redeploy** 해도 됩니다.
+
+커스텀 도메인(예: `eads-app.com`)은 **구매·DNS 연결 후**에만 넣으세요.  
+연결 전에 `INTERNAL_API_BASE` 를 `.com` 으로 두면 대시보드가 API 를 못 부릅니다.
+
+```text
+# 커스텀 도메인 연결 후 예시
+ALLOWED_ORIGINS=https://eads-app.com,http://localhost:3000
+INTERNAL_API_BASE=https://eads-app.com/api/py
+```
+
+환경변수만 바꾼 뒤에는 **Deployments → ⋯ → Redeploy** 해야 반영됩니다.
+
+#### 4-3. Deploy & 확인
+1. **Deploy** → 상태가 **Ready** 인지 확인
+2. `https://exercise-activate-dashboard-system.vercel.app` 접속
+3. API 스모크 테스트:
+   ```bash
+   curl -s -H "X-API-Key: <DASHBOARD_API_KEY>" \
+     https://exercise-activate-dashboard-system.vercel.app/api/py/activities?limit=3
    ```
-   SUPABASE_URL                 = ...
-   SUPABASE_SERVICE_ROLE_KEY    = ...
-   DASHBOARD_API_KEY            = openssl rand -hex 32 로 생성
-   ALLOWED_ORIGINS              = https://<프로젝트>.vercel.app
-   INTERNAL_API_BASE            = https://<프로젝트>.vercel.app/api/py
-   DASHBOARD_API_KEY_SERVER     = DASHBOARD_API_KEY 와 동일한 값
-   ```
-3. Deploy. `vercel.json` 의 rewrite 가 `/api/py/*` 를 FastAPI 로 보냅니다.
+   - JSON / 데이터 배열 → API OK  
+   - `[]` → API는 되나 DB에 활동 없음  
+   - `401` → 키 불일치  
+   - 화면만 뜨고 숫자 0 → `INTERNAL_API_BASE` / `DASHBOARD_API_KEY_SERVER` 확인 후 Redeploy
+
+#### 4-4. 이후 커밋하면?
+GitHub 레포와 Vercel 이 연결되어 있으면, **Production 브랜치(`main` 등)에 push 할 때마다 자동으로 다시 빌드·배포**됩니다.  
+수동으로 “다시 빌드 버튼”을 누를 필요는 없습니다.
+
+- 코드/`package.json` 변경 → push → 자동 Deploy  
+- **Env 변수만** 변경 → push 없음 → **Redeploy** 한 번 필요  
+- Preview: PR / 다른 브랜치 push 시 Preview URL 로 별도 배포
+
+#### 4-5. 자주 막히는 점
+| 증상 | 확인 |
+|---|---|
+| `Module not found: './lib/api'` | `app/lib/api.ts` 가 Git 에 포함됐는지. `.gitignore` 의 `lib/` 가 `app/lib` 까지 가리지 않아야 함 (`/lib/` 권장) |
+| Build Error 로그가 잘림 | Build Logs **맨 아래** 까지 스크롤 (`Failed to compile` / `exited with 1`) |
+| Next deprecation warn | 경고일 뿐. 보안 패치 버전으로 올리는 것은 권장 |
 
 ### Step 5 — 모바일
 ```bash
@@ -144,7 +203,7 @@ capped   = min(2 × 2^(n-1), 120)
 | `service_role` 키 | GitHub Actions 시크릿 + Vercel 서버 런타임에만 존재. **클라이언트 번들 유입 0** |
 | DB 접근 | 전 테이블 RLS ON + 정책 없음 → anon 키로는 한 줄도 못 읽음 |
 | API 인증 | `X-API-Key` + `hmac.compare_digest` (타이밍 공격 방어) |
-| API 노출면 | GET only, `docs_url=None` (Swagger 비공개), CORS 화이트리스트 |
+| API 노출면 | GET only, Swagger `/api/py/docs` (개인용), CORS 화이트리스트 |
 | 웹 | 서버 컴포넌트에서만 API 호출 → API 키가 브라우저에 노출되지 않음 |
 | 모바일 | API 키를 번들에 하드코딩하지 않고 `expo-secure-store`(Keychain/Keystore)에 보관 |
 
