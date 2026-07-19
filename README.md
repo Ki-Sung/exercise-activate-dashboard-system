@@ -87,8 +87,35 @@ Actions 탭 → `garmin-sync` → **Run workflow** → days = `365`
 
 ### Step 4 — Vercel (API + 웹, 한 프로젝트)
 
-웹(Next.js)과 API(FastAPI, `api/index.py`)를 **같은 Vercel 프로젝트**로 배포합니다.  
+웹(Next.js)과 API(FastAPI)를 **같은 Vercel 프로젝트**로 배포합니다.  
 `vercel.json` rewrite 가 `/api/py/*` → `/api/index` 로 연결합니다.
+
+API 실제 로직은 리포지토리 루트의 `backend/` 패키지에 계층별로 분리되어 있고,
+`api/index.py` 는 Vercel 이 요구하는 위치에 두는 **최소한의 진입점(스위치)** 역할만 합니다.
+
+```
+backend/
+  routers/    # URL, 쿼리 파라미터, 인증 연결
+  services/   # 비즈니스 로직 (포맷팅, 조회 조합)
+  db/         # Supabase(PostgREST) 접근
+  schemas/    # 응답 Pydantic 모델
+  core/
+    config.py       # 설정
+    security.py      # X-API-Key 인증
+    app_factory.py    # create_app() — FastAPI 앱을 만드는 팩토리
+api/index.py  # Vercel 엔트리포인트 (backend.core.app_factory.create_app() 호출만 함)
+```
+
+> ⚠️ 왜 로직을 `api/` 안에 두지 않았나요? Vercel 의 Python 런타임은 두 가지 방식이 있는데,
+> ① `/api` 안의 파일이 파일 경로 그대로 라우팅되는 **레거시 방식** (지금 이 프로젝트가 쓰는 방식,
+> `api/index.py` → `/api/index`, `vercel.json` rewrites 로 연결) 과 ② `pyproject.toml` 로 커스텀
+> 경로를 지정하는 **최신 방식**(앱 전체가 하나의 Function이 되며, Next.js 와 같은 프로젝트에서
+> 쓰려면 별도의 "Services" 설정이 필요)이 있습니다. 이미 ①로 안정적으로 배포되고 있으므로,
+> 로직 코드는 `backend/`(어떤 이름이든 `/api` 밖이면 무관)에 두고 `api/index.py` 는 건드리지 않는
+> 것이 가장 안전합니다.
+
+엔드포인트를 늘릴 땐 `backend/routers/`에 라우터 파일 하나, `backend/services/`에 로직 함수를 추가하고
+`backend/core/app_factory.py` 에서 `include_router` 하면 됩니다. `api/index.py` 는 건드릴 필요가 없습니다.
 
 #### 4-1. 프로젝트 Import
 1. [vercel.com](https://vercel.com) → GitHub 로 로그인

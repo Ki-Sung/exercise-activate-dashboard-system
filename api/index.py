@@ -1,129 +1,33 @@
 """
-FastAPI 백엔드 — Vercel Python Serverless Function 으로 배포된다.
+Vercel Python 엔트리포인트.
 
-레이어:
-    router  → service → repository → Supabase(PostgREST)
+Vercel 은 `/api` 디렉토리 안의 `.py` 파일 중 top-level `app`(또는 `handler`) 을
+가진 파일을 파일 경로 그대로 라우팅되는 Vercel Function 으로 인식한다
+(이 파일 → `/api/index`, `vercel.json` 의 rewrites 가 `/api/py/*` 를 여기로 보낸다).
 
-보안:
-- service_role 키는 이 서버(런타임)에만 존재한다. 브라우저/앱 번들에 절대 들어가지 않는다.
-- 클라이언트는 X-API-Key 헤더로 인증한다(개인용 단일 사용자 전제).
-  → 여러 사용자로 확장할 땐 Supabase Auth 의 JWT 검증으로 교체하면 된다.
-- CORS 는 화이트리스트만 허용.
-- 모든 엔드포인트는 읽기 전용.
+실제 백엔드 로직(라우터/서비스/DB/스키마/설정)은 모두 리포지토리 루트의
+`backend/` 패키지에 있다. 이 파일은 Vercel 이 요구하는 위치에 두는
+최소한의 진입점(스위치) 역할만 하고, 로직은 전혀 담지 않는다.
 
-Vercel 은 /api 아래 파일을 함수로 취급하므로, 의존 모듈 분리 없이 한 파일로 유지한다.
+    backend/
+      routers/    # URL, 쿼리 파라미터, 인증 연결
+      services/   # 비즈니스 로직 (포맷팅, 조회 조합)
+      db/         # Supabase(PostgREST) 접근
+      schemas/    # 응답 Pydantic 모델
+      core/       # 설정(config), 인증(security), 앱 팩토리(app_factory)
 """
 from __future__ import annotations
 
-import hmac
 import os
-from datetime import date, timedelta
-from typing import Any
+import sys
 
-import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
+# Vercel 런타임에서 project root 가 sys.path 에 없는 경우에 대한 방어.
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
-# ---------------------------------------------------------------- config
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-API_KEY = os.environ.get("DASHBOARD_API_KEY", "")
-ALLOWED_ORIGINS = [
-    o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()
-]
+from backend.core.app_factory import create_app  # noqa: E402
 
-REST = f"{SUPABASE_URL}/rest/v1"
-HEADERS = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-}
+app = create_app()
 
-
-# ---------------------------------------------------------------- security
-def require_api_key(x_api_key: str = Header(default="")) -> None:
-    if not API_KEY or not hmac.compare_digest(x_api_key, API_KEY):
-        # 타이밍 공격 방지를 위해 compare_digest 사용
-        raise HTTPException(status_code=401, detail="유효하지 않은 API 키입니다.")
-
-
-# ---------------------------------------------------------------- repository
-async def _select(table: str, params: dict[str, Any]) -> list[dict[str, Any]]:
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        res = await client.get(f"{REST}/{table}", headers=HEADERS, params=params)
-    if res.status_code >= 400:
-        raise HTTPException(status_code=502, detail="데이터 조회에 실패했습니다.")
-    return res.json()
-
-
-# ---------------------------------------------------------------- service
-def _decorate(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """페이스를 사람이 읽는 포맷(m:ss/km)으로 덧붙인다."""
-    for row in rows:
-        pace = row.get("avg_pace_s_per_km")
-        if pace:
-            minutes, seconds = divmod(int(round(float(pace))), 60)
-            row["avg_pace_label"] = f"{minutes}:{seconds:02d}"
-        else:
-            row["avg_pace_label"] = "-"
-        duration = row.get("total_duration_s") or row.get("duration_s") or 0
-        hours, rest = divmod(int(float(duration)), 3600)
-        row["duration_label"] = f"{hours}:{rest // 60:02d}:{rest % 60:02d}"
-    return rows
-
-
-# ---------------------------------------------------------------- app
-app = FastAPI(
-    title="Garmin Running Dashboard API",
-    docs_url="/api/py/docs",
-    redoc_url="/api/py/redoc",
-    openapi_url="/api/py/openapi.json",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS or ["http://localhost:3000"],
-    allow_methods=["GET"],
-    allow_headers=["X-API-Key", "Content-Type"],
-)
-
-
-@app.get("/api/py/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-@app.get("/api/py/summary/daily", dependencies=[Depends(require_api_key)])
-async def daily(days: int = Query(14, ge=1, le=90)) -> list[dict[str, Any]]:
-    since = (date.today() - timedelta(days=days)).isoformat()
-    rows = await _select(
-        "v_daily_summary",
-        {"select": "*", "period_start": f"gte.{since}", "order": "period_start.desc"},
-    )
-    return _decorate(rows)
-
-
-@app.get("/api/py/summary/weekly", dependencies=[Depends(require_api_key)])
-async def weekly(weeks: int = Query(12, ge=1, le=52)) -> list[dict[str, Any]]:
-    rows = await _select(
-        "v_weekly_summary",
-        {"select": "*", "order": "period_start.desc", "limit": str(weeks)},
-    )
-    return _decorate(rows)
-
-
-@app.get("/api/py/summary/monthly", dependencies=[Depends(require_api_key)])
-async def monthly(months: int = Query(12, ge=1, le=36)) -> list[dict[str, Any]]:
-    rows = await _select(
-        "v_monthly_summary",
-        {"select": "*", "order": "period_start.desc", "limit": str(months)},
-    )
-    return _decorate(rows)
-
-
-@app.get("/api/py/activities", dependencies=[Depends(require_api_key)])
-async def activities(limit: int = Query(20, ge=1, le=100)) -> list[dict[str, Any]]:
-    rows = await _select(
-        "v_activities",
-        {"select": "*", "order": "start_time_local.desc", "limit": str(limit)},
-    )
-    return _decorate(rows)
+__all__ = ["app"]
