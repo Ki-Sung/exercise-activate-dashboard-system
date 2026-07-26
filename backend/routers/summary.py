@@ -19,12 +19,12 @@ router = APIRouter(
 
 
 @router.get("/daily", response_model=list[SummaryOut])
-async def daily(days: int = Query(14, ge=1, le=90)) -> list[SummaryOut]:
+async def daily(days: int = Query(14, ge=1, le=3000)) -> list[SummaryOut]:
     return await get_daily_summary(days)
 
 
 @router.get("/weekly", response_model=list[SummaryOut])
-async def weekly(weeks: int = Query(12, ge=1, le=52)) -> list[SummaryOut]:
+async def weekly(weeks: int = Query(12, ge=1, le=400)) -> list[SummaryOut]:
     return await get_weekly_summary(weeks)
 
 
