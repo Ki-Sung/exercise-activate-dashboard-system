@@ -1,5 +1,4 @@
 # EAD(Exercise Activate Dashboard) System
----
 
 ## 1. 아키텍처
 
