@@ -1,7 +1,4 @@
 # EAD(Exercise Activate Dashboard) System
-
-AWS 없이, 카드 등록 없이, 개인 프로젝트 규모에서 **월 0원**으로 굴러가는 구성입니다.
-
 ---
 
 ## 1. 아키텍처
